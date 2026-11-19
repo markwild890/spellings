@@ -116,6 +116,21 @@
   .k:active,.k.down{background:var(--storm);transform:translateY(2px)}
   .k.wide{flex:1.6 1 0;max-width:140px;font-size:clamp(15px,2.2vw,20px)}
   .k.go{flex:3 1 0;max-width:420px;background:var(--loot);color:var(--ink);border-color:var(--loot-deep);font-family:var(--display);font-weight:400;letter-spacing:.04em}
+  .diff .x{color:var(--miss);text-decoration:line-through} .diff .gap{color:var(--miss)}
+
+  /* mistakes log: right-hand column on wide screens, a strip under the word on narrow ones */
+  .arena{flex:1;min-height:0;display:flex;gap:16px}
+  .arena .stage{flex:1;min-width:0}
+  .efforts{flex:none;width:280px;align-self:center;max-height:100%;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:14px 16px}
+  .efforts.miss{border-color:var(--miss)}
+  .efforts h3{font-family:var(--display);font-weight:800;font-size:22px;text-transform:uppercase;transform:skew(-6deg);transform-origin:left;text-shadow:0 2px 0 var(--ink)}
+  .efforts.miss h3{color:var(--miss)}
+  .efforts ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  .efforts li{background:var(--panel-2);border-radius:6px;border-left:4px solid var(--miss);padding:6px 12px 8px}
+  .efforts li .diff{display:block;font-size:24px;letter-spacing:.04em}
+  .efforts small{display:block;font-size:11.5px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-dim)}
+  .efforts .new{animation:pop .6s ease-out}
+  @keyframes pop{from{transform:scale(1.08);background:#6a1f4a}}
 
   /* results */
   #s-result{overflow-y:auto}
@@ -139,6 +154,15 @@
   .form .two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .form h2{font-family:var(--display);font-weight:400;font-size:34px;transform:skew(-6deg);transform-origin:left}
 
+  @media (max-width:900px){
+    .arena{flex-direction:column;gap:8px}
+    .efforts{width:auto;align-self:stretch;max-height:none;flex-direction:row;align-items:center;overflow-x:auto;padding:8px 12px}
+    .efforts h3{font-size:16px;flex:none}
+    .efforts ol{flex-direction:row}
+    .efforts li{flex:none;padding:3px 10px 5px}
+    .efforts li .diff{font-size:19px}
+    .efforts .hint,.efforts.empty{display:none}
+  }
   @media (max-width:820px){
     .lobby{grid-template-columns:1fr}
     .cards{grid-template-columns:repeat(2,1fr)}
@@ -183,7 +207,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
       {w:'intelligence',m:'A person\'s ability to understand and learn.',s:'It takes intelligence to work out the puzzle on the last level.'},
       {w:'transparent',m:'Clear enough to see through.',s:'The water bottle is transparent, so you can see how much is left.'}
     ],
-    mastery:{},wins:[],history:[],need:1,reward:'Gadget time',pin:'',set:'ent-ence-2026-11-17'
+    mastery:{},attempts:{},wins:[],history:[],need:1,reward:'Gadget time',pin:'',set:'ent-ence-2026-11-17'
   };
   var state=load(), game=null, toast='', parentOpen=false, quitArmed=0;
 
@@ -195,7 +219,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
     if(!Array.isArray(o.words)||!o.words.length) o.words=JSON.parse(JSON.stringify(DEFAULTS.words));
     if(s.set!==DEFAULTS.set){ // a new week's words: replace what the device saved, keep reward, PIN and history
       var d=JSON.parse(JSON.stringify(DEFAULTS));
-      o.words=d.words; o.label=d.label; o.pattern=d.pattern; o.mastery={}; o.wins=[]; o.set=d.set;
+      o.words=d.words; o.label=d.label; o.pattern=d.pattern; o.mastery={}; o.attempts={}; o.wins=[]; o.set=d.set;
     }
     return o;
   }
@@ -217,7 +241,24 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
   function blank(s,w){if(!s)return 'Listen, then spell the word.';
     var re=new RegExp('\\b'+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'\\b','i');
     return esc(s).replace(re,'<span class="blank"></span>');}
-  function diff(typed,target){var h='';for(var i=0;i<typed.length;i++){h+='<span class="'+(typed[i]===target[i]?'ok':'bad')+'">'+esc(typed[i])+'</span>';}return h||'&nbsp;';}
+  /* line the attempt up with the real word: red = wrong letter, crossed out = extra letter, _ = missing letter */
+  function diff(typed,target){
+    var a=typed.toLowerCase(), b=target.toLowerCase(), n=a.length, m=b.length, D=[], i, j, out=[];
+    for(i=0;i<=n;i++){D[i]=[];for(j=0;j<=m;j++)D[i][j]=(i&&j)?0:i+j;}
+    for(i=1;i<=n;i++)for(j=1;j<=m;j++)D[i][j]=Math.min(D[i-1][j-1]+(a[i-1]===b[j-1]?0:1),D[i-1][j]+1,D[i][j-1]+1);
+    i=n; j=m;
+    while(i||j){
+      if(i&&j&&D[i][j]===D[i-1][j-1]+(a[i-1]===b[j-1]?0:1)){out.unshift('<span class="'+(a[i-1]===b[j-1]?'ok':'bad')+'">'+esc(typed[i-1])+'</span>');i--;j--;}
+      else if(i&&D[i][j]===D[i-1][j]+1){out.unshift('<span class="x">'+esc(typed[i-1])+'</span>');i--;}
+      else{out.unshift('<span class="gap" title="missing letter">_</span>');j--;}
+    }
+    return out.join('')||'&nbsp;';
+  }
+  function logMiss(w,typed,mode){var a=(state.attempts=state.attempts||{})[w]||[];
+    a.unshift({t:typed,ts:Date.now(),m:mode}); state.attempts[w]=a.slice(0,8);}
+  function ago(ts){var d=new Date(ts);
+    return d.toDateString()===new Date().toDateString()?'Today '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})
+      :d.toLocaleDateString('en-GB',{weekday:'short',day:'numeric',month:'short'});}
   function shuffle(a){a=a.slice();for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)),t=a[i];a[i]=a[j];a[j]=t;}return a;}
   function unlocked(){return state.wins.length>=state.need;}
 
@@ -338,7 +379,21 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
         '<p class="eyebrow">It should be</p><div class="word">'+hl(w.w)+'</div>'+means(w)+
         '<button class="btn" data-act="look">Look again</button>';
     }
-    $('#s-play').innerHTML=hud+'<div class="stage">'+body+'</div>'+kb;
+    var side='';
+    if(battle){
+      var ms=g.results.filter(function(r){return !r.ok;});
+      if(ms.length) side='<aside class="panel efforts miss" aria-live="polite"><h3>Incorrect</h3><ol>'+
+        ms.slice().reverse().map(function(r,k){
+          return '<li'+(k===0&&g.phase==='flash'?' class="new"':'')+'><small>Word '+(g.results.indexOf(r)+1)+'</small><span class="diff">'+diff(r.typed,state.words[r.i].w)+'</span></li>';}).join('')+'</ol></aside>';
+    }else{
+      var at=(state.attempts||{})[w.w]||[];
+      side='<aside class="panel efforts'+(at.length?' miss':' empty')+'" aria-live="polite"><h3>Previous efforts</h3>'+
+        (at.length?'<ol>'+at.map(function(a,k){
+          return '<li'+(k===0&&g.phase==='wrong'?' class="new"':'')+'><small>'+(a.m==='battle'?'Battle':'Training')+' · '+esc(ago(a.ts))+'</small><span class="diff">'+diff(a.t,w.w)+'</span></li>';}).join('')+
+          '</ol><p class="note hint">Red letters are wrong, crossed-out letters are extra, and _ is a missing letter.</p>'
+          :'<p class="note">No mistakes on this word yet.</p>')+'</aside>';
+    }
+    $('#s-play').innerHTML=hud+'<div class="arena"><div class="stage">'+body+'</div>'+side+'</div>'+kb;
     show('play');
   }
   function start(mode,list){
@@ -358,6 +413,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
     var g=game, w=cur(); if(!g.typed)return;
     if(g.mode==='battle'){ g.phase='confirm'; g.confirmAt=Date.now(); renderPlay(); return; }
     var ok=g.typed.toLowerCase()===w.w.toLowerCase();
+    if(!ok) logMiss(w.w,g.typed,'train');
     bump(w.w,ok?1:-1,3); save(); g.phase=ok?'right':'wrong'; beep(ok?[660,880]:[220,180]); renderPlay();
   }
   function commit(){
@@ -365,6 +421,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
     if(!g||g.phase!=='confirm'||Date.now()-g.confirmAt<600)return; // a fast double tap cannot confirm
     var ok=g.typed.toLowerCase()===w.w.toLowerCase();
     g.results.push({i:g.list[g.i],typed:g.typed,ok:ok});
+    if(!ok) logMiss(w.w,g.typed,'battle');
     bump(w.w,ok?1:-1,6); beep(ok?[660,880,1100]:[220,180]);
     g.phase='flash'; renderPlay();
     setTimeout(function(){ if(game!==g)return;
@@ -451,7 +508,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
       var words=$('#p-words').value.split('\n').map(function(l){var p=l.split('|');return {w:(p[0]||'').trim().toLowerCase(),s:(p[1]||'').trim(),m:(p.slice(2).join('|')||'').trim()};}).filter(function(x){return x.w;});
       if(!words.length){$('#p-msg').textContent='Add at least one word before saving.';return;}
       var was=state.words.map(function(x){return x.w;}).join(','), now=words.map(function(x){return x.w;}).join(',');
-      if(was!==now){state.mastery={};state.wins=[];}
+      if(was!==now){state.mastery={};state.attempts={};state.wins=[];}
       state.words=words;
       state.reward=$('#p-reward').value.trim()||'Reward';
       state.need=Math.max(1,Math.min(10,parseInt($('#p-need').value,10)||1));
