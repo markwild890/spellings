@@ -380,12 +380,7 @@ var CLIPS={"competence-m": "data:audio/mp4;base64,AAAAHGZ0eXBNNEEgAAAAAE00QSBtcD
         '<button class="btn" data-act="look">Look again</button>';
     }
     var side='';
-    if(battle){
-      var ms=g.results.filter(function(r){return !r.ok;});
-      if(ms.length) side='<aside class="panel efforts miss" aria-live="polite"><h3>Incorrect</h3><ol>'+
-        ms.slice().reverse().map(function(r,k){
-          return '<li'+(k===0&&g.phase==='flash'?' class="new"':'')+'><small>Word '+(g.results.indexOf(r)+1)+'</small><span class="diff">'+diff(r.typed,state.words[r.i].w)+'</span></li>';}).join('')+'</ol></aside>';
-    }else{
+    if(!battle){ // Battle stays a clean test: mistakes only show in Training
       var at=(state.attempts||{})[w.w]||[];
       side='<aside class="panel efforts'+(at.length?' miss':' empty')+'" aria-live="polite"><h3>Previous efforts</h3>'+
         (at.length?'<ol>'+at.map(function(a,k){
